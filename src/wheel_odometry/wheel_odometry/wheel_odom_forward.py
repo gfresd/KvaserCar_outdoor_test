@@ -65,7 +65,7 @@ class RoverOdometryNode(Node):
             return
 
         current_time = self.get_clock().now()
-        dt = 0.2
+        dt = 1 / self.update_frequency
 
         v_x = (self.v_rear_left + self.v_rear_right) / 2.0
         theta_dot = v_x / self.wheelbase * math.tan(delta)

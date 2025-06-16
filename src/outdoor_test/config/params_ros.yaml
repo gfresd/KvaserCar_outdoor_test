@@ -7,11 +7,11 @@ pub_ref_spd:
 rover_odometry_node:
   ros__parameters:
     wheelbase: 0.55
-    update_frequency: 20.0
+    update_frequency: 10.0
     is_radio: 0
 
 # decide whether to use angle steering correction and throttle speed PI control
-low_level_control_easy_play:
+ctrl_rover:
   ros__parameters:
     is_steering_correction: 1
     is_throttle_correction: 0

@@ -22,7 +22,8 @@ setup(
         'console_scripts': [
             'low_level_control = control_rover.low_level_control:main',
             'low_level_control_feedback = control_rover.low_level_control_feedback:main',
-            'low_level_control_easy_play = control_rover.low_level_control_easy_play:main'
+            'low_level_control_easy_play = control_rover.low_level_control_easy_play:main',
+            'simple_ctrl = control_rover.simple_ctrl:main'
         ],
     },
 )

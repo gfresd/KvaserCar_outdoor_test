@@ -12,8 +12,6 @@ class LowLevelCtrl(Node):
         super().__init__('low_level_ctrl')
 
         # Subscribers
-        self.subscription_joystick = self.create_subscription(
-            Bool, '/aeb_triggered', self.aeb_callback, 5)
         self.subscription_ref_spd = self.create_subscription(
             Float32, '/ref_spd', self.ref_spd_callback, 2)
         self.subscription_curr_odom = self.create_subscription(Odometry, '/odometry/filtered', self.odom_callback, 10)
@@ -49,21 +47,11 @@ class LowLevelCtrl(Node):
         self.ctrl_steer_angle = 5.0 # 5 degree
         self.flag = 0 # judge if newly executed
 
-
-    def aeb_callback(self, msg):
-        """Check if aeb is triggered."""
-        self.aeb_triggered = msg.data
-        if self.aeb_triggered:
-            # self.get_logger().info("Throttle updated to: 0")
-            self.publisher_throttle.publish(Float32(data=0.0))
-        else:
-            # self.get_logger().info(f"Throttle updated to: {self.throttle:.2f}")
-            self.publisher_throttle.publish(Float32(data=self.throttle))
-
     def ref_spd_callback(self, msg):
         """Check the reference speed data, update the throttle control value."""
         self.ref_spd = msg.data
         self.throttle = self.spd_to_throttle(self.ref_spd)
+        #self.get_logger().info(f"The reference throttle is {self.throttle}.") #, throttle_duration_sec=1.0)
 
     def odom_callback(self, msg):
         """Check the current longitudial velocity and vehicle heading"""
@@ -76,43 +64,19 @@ class LowLevelCtrl(Node):
         _, _, self.heading_angle = r.as_euler('xyz')
 
     def timer_callback(self):
-        """Publish motor commands at a fixed rate of 50Hz"""
-        throttle_val = 0.0 if self.aeb_triggered else self.throttle
+        """Publish motor commands at a fixed rate of 10Hz"""
+        throttle_val = self.throttle
         self.publisher_throttle.publish(Float32(data=throttle_val))
+        self.get_logger().info(f"The reference throttle is {throttle_val}.") #, throttle_duration_sec=1.0)
         if self.is_steering_correction:
             steer_val = self.cal_steering()
         else:
             steer_val = 0.0
         self.publisher_steering.publish(Float32(data=steer_val))
 
-    def cal_throttle(self, ref_spd):
-        """Calculate the throttle control input given a reference speed, use a feedforward mapping + PI controller"""
-        # if the vehicle is still static in the beginning, only give the FF part
-        if self.vel == 0 and self.flag == 0:
-            # check feedforward output
-            FF_out = (ref_spd + 0.62)/0.04 # this is calibrated from the data in the shared onedrive folder, linear fit for stable speed v.s. throttle input
-            self.flag = 1
-            return FF_out
-        else:
-            # check feedforward output
-            FF_out = (ref_spd + 0.62)/0.04 # this is calibrated from the data in the shared onedrive folder, linear fit for stable speed v.s. throttle input
-            if self.is_throttle_correction:
-                curr_time = time.time()
-                if self.last_time is None:
-                    self.last_time = curr_time
-                # check time difference
-                dt = curr_time - self.last_time
-                # check PI output
-                err = ref_spd - self.vel
-                self.integral = self.integral + err*dt
-                PI_out = self.kp*err + self.ki*self.integral
-                throttle_ctrl = PI_out + FF_out
-            else:
-                throttle_ctrl = FF_out
-            throttle_ctrl = max(self.output_limits[0], min(self.output_limits[1], throttle_ctrl))
-            return throttle_ctrl
 
     def spd_to_throttle(self, ref_spd):
+        self.get_logger().info(f"Receive ref spd= {ref_spd}")
         """Convert the reference speed to the throttle control value, use a open test mapping, this is NOT a closed-loop control."""
         if ref_spd == 0.0:
             self.get_logger().info("The reference speed is 0.", throttle_duration_sec=1.0)
@@ -121,7 +85,7 @@ class LowLevelCtrl(Node):
             self.get_logger().warn("The reference speed must be from the range of [1, 3].", throttle_duration_sec=1.0)
             return 0.0
         else:
-            return self.cal_throttle(ref_spd)
+            return (ref_spd + 0.62)/0.04
 
     def cal_steering(self):
         """Steer back the vehicle heading if it deviates too much"""
