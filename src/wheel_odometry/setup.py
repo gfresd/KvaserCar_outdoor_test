@@ -23,6 +23,7 @@ setup(
     entry_points={
         'console_scripts': [
             'wheel_odometry_node = wheel_odometry.wheel_odometry_node:main',  # Node executable
+            'wheel_odometry_forward = wheel_odometry.wheel_odom_forward:main',  # Node executable
         ],
     },
 )

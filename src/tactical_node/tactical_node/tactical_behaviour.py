@@ -169,6 +169,7 @@ class TacticalBehavior:
         self.ego_time_to_leave_cr = -1
         self.ego_time_to_cr = -1
         self.target_time_to_leave_cr = -1
+        self.ego_pred_go_pos = CriticalRegion.Position.UNKNOWN
 
         #---- COMPUTE TARGET POSITION AND TIME TO CR
         target_length = self.msg.length if self.msg.length is not None else self.adv_length
@@ -239,9 +240,11 @@ class TacticalBehavior:
                     
             elif self.ego_current_pos == CriticalRegion.Position.INSIDE_CR:
                 # in case ego is inside or after the CR
-                self.ego_action = TacticalAction.BREAKING
+                # the timing were checked
+                self.ego_action = TacticalAction.CONTINUE
                 #print("***********OOOOOOOOOOOOOOOO!!!!!!")
             else:
+                # ego is AFTER the CR
                 self.ego_action = TacticalAction.CONTINUE  
                 #print("***********TTTTTTTTTTTTTTT!!!!!!")    
 
@@ -272,11 +275,21 @@ class TacticalBehavior:
                     self.ego_action = TacticalAction.BREAKING
                     #print("***********CCCCCCCC!!!!!!")
 
+                elif self.ego_current_pos == CriticalRegion.Position.BEFORE_CR:
+                    self.ego_time_to_cr = self.ego_prediction.get_time_to_cr(self.ego_current_pos,
+                                                                ego_vel,
+                                                                ego_acc)
+                    
+                    if self.ego_time_to_cr < self.target_time_to_leave_cr:
+                        # we must break
+                        self.ego_action = TacticalAction.BREAKING
+                    else:
+                        # we can continue
+                        self.ego_action = TacticalAction.CONTINUE
+
                 else:
                     # ego current pose is before the CR                                    
-                    if self.ego_pred_go_pos != CriticalRegion.Position.BEFORE_CR:
-                        self.ego_action = TacticalAction.BREAKING
-                        #print("***********DDDDDDDDD!!!!!!")
+                    print("[ERROR] we should not be here")
 
         #print("*************OUT")
         self.ego_d_front, self.ego_d_to_cr, self.ego_ttcr = self.ego_prediction.get_dist_and_time_to_cr(ego_vel, ego_front_p)

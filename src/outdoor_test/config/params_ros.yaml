@@ -1,17 +1,17 @@
 # parameter for the reference speed
 pub_ref_spd:
   ros__parameters:
-    ref_spd: 0.0
+    ref_spd: 1.5
 
 # control by joystick or automatically
 rover_odometry_node:
   ros__parameters:
     wheelbase: 0.55
-    update_frequency: 20.0
+    update_frequency: 10.0
     is_radio: 0
 
 # decide whether to use angle steering correction and throttle speed PI control
-low_level_control_easy_play:
+ctrl_rover:
   ros__parameters:
     is_steering_correction: 1
     is_throttle_correction: 0
@@ -26,10 +26,10 @@ obps_receiver:
 # tactical node parameters definition
 tactical_node:
   ros__parameters:
-    cr_point_1: [2.0, 2.0]
-    cr_point_2: [2.0, -2.0]
-    cr_point_3: [-2.0, -2.0]
-    cr_point_4: [-2.0, 2.0]
+    cr_point_1: [0.5, 0.5]
+    cr_point_2: [0.5, -0.5]
+    cr_point_3: [-0.5, -0.5]
+    cr_point_4: [-0.5, 0.5]
     adv_path_start: [0.0, -4.0]
     adv_path_end: [0.0, 2.0]
     ego_path_start: [4.0, 0.0]

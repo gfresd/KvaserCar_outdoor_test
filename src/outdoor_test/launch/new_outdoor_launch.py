@@ -24,6 +24,7 @@ def generate_launch_description():
     with open(params_ros_file, 'r') as f:
         config = yaml.safe_load(f)
     ego_path_start = config.get('tactical_node', {}).get('ros__parameters', {}).get('ego_path_start', None)
+    odom_freq = float(config.get('rover_odometry_node', {}).get('ros__parameters', {}).get('update_frequency', None))
     # Convert values to strings for arguments
     ego_start_x = float(ego_path_start[0])
     ego_start_y = float(ego_path_start[1])
@@ -52,7 +53,7 @@ def generate_launch_description():
     # Include the wheel odometry node
     wheel_odom = Node(
         package='wheel_odometry',
-        executable='wheel_odometry_node',
+        executable='wheel_odometry_forward',
         name='rover_odometry_node',
         output='screen',
         parameters=[params_ros_file]
@@ -145,6 +146,34 @@ def generate_launch_description():
                    ]
     )
     
+    # --- Direct Publishing of Wheel Frequencies ---
+    # Use ExecuteProcess to run 'ros2 topic pub --once' for each wheel.
+    # This avoids the need for a separate publisher node.
+    
+    freq_value = f'{{data: {odom_freq} }}' # The message content in YAML format
+    
+    msg_type = 'std_msgs/msg/UInt32' # The message type
+
+    front_left_freq_pub = ExecuteProcess(
+        cmd=['ros2', 'topic', 'pub', '/rover/wheel_front_left/report_frequency_hz', msg_type, freq_value],
+        output='screen'
+    )
+
+    front_right_freq_pub = ExecuteProcess(
+        cmd=['ros2', 'topic', 'pub', '/rover/wheel_front_right/report_frequency_hz', msg_type, freq_value],
+        output='screen'
+    )
+
+    rear_left_freq_pub = ExecuteProcess(
+        cmd=['ros2', 'topic', 'pub', '/rover/wheel_rear_left/report_frequency_hz', msg_type, freq_value],
+        output='screen'
+    )
+
+    rear_right_freq_pub = ExecuteProcess(
+        cmd=['ros2', 'topic', 'pub', '/rover/wheel_rear_right/report_frequency_hz', msg_type, freq_value],
+        output='screen'
+    )
+
     # Add a log message to indicate successful launch
     launch_complete_message = LogInfo(msg="All nodes and launch files have been successfully started!")
 
@@ -162,5 +191,9 @@ def generate_launch_description():
         tactical_node,
         map_odom_tf,
         rosbag_record,
+        front_left_freq_pub,
+        front_right_freq_pub,
+        rear_left_freq_pub,
+        rear_right_freq_pub,
         launch_complete_message
     ])
