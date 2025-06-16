@@ -1,7 +1,7 @@
 # parameter for the reference speed
 pub_ref_spd:
   ros__parameters:
-    ref_spd: 0.0
+    ref_spd: 1.5
 
 # control by joystick or automatically
 rover_odometry_node:

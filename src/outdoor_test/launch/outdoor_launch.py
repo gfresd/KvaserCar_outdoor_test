@@ -52,10 +52,10 @@ def generate_launch_description():
     # Include the wheel odometry node
     wheel_odom = Node(
         package='wheel_odometry',
-        executable='wheel_odometry_node',
+        executable='wheel_odometry_forward',
         name='rover_odometry_node',
-        output='screen',
-        parameters=[params_ros_file]
+        output='screen'
+        #parameters=[params_ros_file]
     )
 
     # Include the EKF robot_localization launch file

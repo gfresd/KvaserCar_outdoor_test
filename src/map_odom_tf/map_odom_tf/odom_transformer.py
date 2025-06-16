@@ -16,7 +16,7 @@ class OdomTransformer(Node):
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
         # Subscriber and publisher
-        self.sub = self.create_subscription(Odometry, '/odometry/filtered', self.odom_callback, 10)
+        self.sub = self.create_subscription(Odometry, '/odometry', self.odom_callback, 10)
         self.pub = self.create_publisher(Odometry, '/odometry/map', 10)
 
     def odom_callback(self, msg):
