@@ -1,0 +1,42 @@
+```mermaid
+stateDiagram-v2
+    %% Initial pseudo-state
+    [*] --> UNKNOWN: reset
+
+    %% Top-level based on target_pred_pos
+    UNKNOWN --> BEFORE_CR: target_pred_pos == BEFORE_CR
+    UNKNOWN --> INSIDE_CR: target_pred_pos == INSIDE_CR
+    UNKNOWN --> AFTER_CR:  target_pred_pos == AFTER_CR
+
+    %% BEFORE_CR sub-state logic
+    state BEFORE_CR {
+      BEFORE_CR --> AFTER_CR: ego_time_to_leave_cr < target_time_to_cr\n[action=CONTINUE]
+      BEFORE_CR --> BEFORE_CR: ego_time_to_cr > target_time_to_leave_cr\n[action=CONTINUE]
+      BEFORE_CR --> INSIDE_CR: otherwise\n[action=BREAKING]
+    }
+
+    %% INSIDE_CR sub-state logic
+    state INSIDE_CR {
+      INSIDE_CR --> AFTER_CR: ego_current_pos == AFTER_CR\n[action=CONTINUE]
+      INSIDE_CR --> INSIDE_CR: ego_current_pos == INSIDE_CR\n[action=BREAKING]
+      INSIDE_CR --> CONTINUE_BEFORE: ego_current_pos == BEFORE_CR and ego_time_to_cr ≥ target_time_to_leave_cr\n[action=CONTINUE]
+      INSIDE_CR --> INSIDE_CR: ego_current_pos == BEFORE_CR and ego_time_to_cr < target_time_to_leave_cr\n[action=BREAKING]
+    }
+    %% Helper pseudo-state for clarity
+    state CONTINUE_BEFORE {
+      CONTINUE_BEFORE --> AFTER_CR: (flow continues)
+      CONTINUE_BEFORE --> BEFORE_CR: (flow continues)
+      CONTINUE_BEFORE --> INSIDE_CR: (flow continues)
+    }
+
+    %% AFTER_CR is terminal—always continues
+    state AFTER_CR {
+      [*] --> AFTER_CR: (once entered)
+      AFTER_CR --> AFTER_CR: (no other checks)\n[action=CONTINUE]
+    }
+
+    %% Outgoing from any state back to final
+    AFTER_CR --> [*]
+    BEFORE_CR --> [*]
+    INSIDE_CR --> [*]
+```
