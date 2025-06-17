@@ -141,9 +141,9 @@ class EgoAdvSimNode(Node):
         self.declare_parameter('adv_start_x', 0.0)
         self.declare_parameter('adv_start_y', -4.0)
         self.declare_parameter('adv_end_x', 0.0)
-        self.declare_parameter('adv_end_y', 6.0)
-        self.declare_parameter('adv_ref_speed', 1.1)
-        self.declare_parameter('adv_max_acc', 1.1)
+        self.declare_parameter('adv_end_y', 5.0)
+        self.declare_parameter('adv_ref_speed', 1.25)
+        self.declare_parameter('adv_max_acc', 1.05)
 
         self.declare_parameter('cr_point_1', [0.5, 0.5])
         self.declare_parameter('cr_point_2', [0.5, -0.5])
@@ -153,12 +153,12 @@ class EgoAdvSimNode(Node):
         # UDP & sim parameters
         self.declare_parameter('udp_target_ip', '127.0.0.1')
         self.declare_parameter('udp_target_port', 9999)
-        self.declare_parameter('udp_delay', 0.1) # in seconds
-        self.declare_parameter('add_aoi', 300)     # in milli
+        self.declare_parameter('udp_delay', 0.01) # in seconds
+        self.declare_parameter('add_aoi', 850)     # in milli
         self.declare_parameter('adv_queue_size', 1)
-        self.declare_parameter('comm_fail_start', 0)
-        self.declare_parameter('comm_fail_duration', 0.6) # in seconds
-        self.declare_parameter('sim_step', 0.05)
+        self.declare_parameter('comm_fail_start', 1.0)
+        self.declare_parameter('comm_fail_duration', 9.0) # in seconds
+        self.declare_parameter('sim_step', 0.02)
         self.declare_parameter('comm_step', 0.001)
 
         # vehcile sizes
@@ -316,6 +316,7 @@ class EgoAdvSimNode(Node):
         if len(self.adv_queue) < self.adv_queue_size:
             now = self.get_clock().now().nanoseconds
             noise = self._adv_noise()
+            noise = 0
             send_v = self._add_vel_noise(self.adv_motion.v, noise)
             send_x, send_y = self._get_adv_position_to_send(ax, ay, noise)
             payload = {
