@@ -24,8 +24,8 @@ EGO_PATH_START = [4.0, 0.0]
 EGO_PATH_END = [-2.0, 0.0]
 
 # ADVERSARY PARAMETERS
-ADV_MAX_SPEED = 1.2 #[m/s]
-ADV_MAX_ACC = 1.2 #[m/s]
+ADV_MAX_SPEED = 1.25 #[m/s]
+ADV_MAX_ACC = 1.05 #[m/s]
 ADV_LENGTH = 0.720 #[m]
 ADV_WIDTH = 0.515 #[m]
 

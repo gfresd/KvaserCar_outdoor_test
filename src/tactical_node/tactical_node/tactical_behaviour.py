@@ -332,7 +332,7 @@ class TacticalBehavior:
 
         self.data_log["ego_ttlcr_less_adv_ttcr"].append(self.ego_ttlcr_less_adv_ttcr)
         self.data_log["ego_ttcr_greater_adv_ttlcr"].append(self.ego_ttcr_greater_adv_ttlcr)
-        self.data_log["ego_ttcr_less_adv_ttlcr"].apend(self.ego_ttcr_less_adv_ttlcr)
+        self.data_log["ego_ttcr_less_adv_ttlcr"].append(self.ego_ttcr_less_adv_ttlcr)
        
         if self.msg is not None:
             self.data_log["msg_current"].append((self.call_time, self.msg.id, self.msg.time_stamp, self.msg.arrival_time))
