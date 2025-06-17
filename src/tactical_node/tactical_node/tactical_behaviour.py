@@ -228,12 +228,12 @@ class TacticalBehavior:
             # check where ego is
             if self.ego_current_pos == CriticalRegion.Position.BEFORE_CR:
                 #print("***********PPPPPPPPPPPPPPP!!!!!! pred_pos_1: {0} pred_pos_2: {1}".format(self.pose_to_string(ego_pred_go_pos_ttcr1), self.pose_to_string(ego_pred_go_pos_ttcr2)))
-                if self.ego_time_to_leave_cr < self.target_time_to_cr:
+                if self.ego_time_to_leave_cr < self.target_time_to_cr - 0.001:
                     self.ego_action = TacticalAction.CONTINUE
                     self.ego_pred_go_pos = CriticalRegion.Position.AFTER_CR
                     self.ego_ttlcr_less_adv_ttcr = 1 
                     #print(f"***********HERE 11  ego_time_to_leave_cr {ego_time_to_leave_cr}!!!!!!")
-                elif self.ego_time_to_cr > self.target_time_to_leave_cr:
+                elif self.ego_time_to_cr > self.target_time_to_leave_cr + 0.001:
                     self.ego_action = TacticalAction.CONTINUE
                     self.ego_pred_go_pos = CriticalRegion.Position.BEFORE_CR
                     self.ego_ttcr_greater_adv_ttlcr = 1
@@ -287,7 +287,7 @@ class TacticalBehavior:
                                                                 ego_vel,
                                                                 ego_acc)
                     
-                    if self.ego_time_to_cr < self.target_time_to_leave_cr:
+                    if self.ego_time_to_cr < self.target_time_to_leave_cr - 0.001:
                         # ego must break
                         self.ego_action = TacticalAction.BREAKING
                         self.ego_ttcr_less_adv_ttlcr = 1
