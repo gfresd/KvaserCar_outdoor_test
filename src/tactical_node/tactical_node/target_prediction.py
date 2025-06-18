@@ -21,18 +21,37 @@ class TargetPrediction:
         self.dist_to_cr = -1
         self.max_speed = max_speed
         self.v_delta = 0.1
+        self.eps = 0.01
 
     def at_max_speed(self, target_vel)-> bool:
         cond1 = math.fabs(target_vel - self.max_speed) < self.v_delta
         cond2 = target_vel > self.max_speed
         return cond1 or cond2
-    
-    def get_time_accelerated_motion(self, vel, acc, distance):
-        # get target time to critical region
-        # discriminant V*v - 4*0.5*a*(-distance)
-        discriminant = vel ** 2 - 2 * acc * (-distance)
-        t = (-vel + math.sqrt(discriminant)) / acc
-        return t
+       
+    def _get_time_to(self, vel, acc, distance):
+        # check if we are at max speed
+        if self.at_max_speed(vel):
+            return distance / self.max_speed
+        
+        # Treat extremely small velocities as zero
+        if abs(vel) < self.eps:
+            vel = 0.0
+
+        # if we are not at max speed we should calculate the time piece wise
+        d1 = ((self.max_speed ** 2) - (vel**2)) / (2 * acc)
+        if distance > d1:
+            #accelerated motion
+            t1 = (self.max_speed - vel) / acc
+            #constant motion
+            d2 = distance - d1
+            t2 = d2 / self.max_speed
+            return t1 + t2
+        else:
+            # only accelerated motion, that means that while moving up to distance we never reach max speed
+            # discriminant V*v - 4*0.5*a*(-distance) -> V*v + 4*0.5*a*(distance)
+            discriminant = vel ** 2 - 2 * acc * (-distance)
+            t = (-vel + math.sqrt(discriminant)) / acc
+            return t
            
 
     def project_to_path(self, front: shapely.Point, target_length: float, displacement: float):
@@ -57,76 +76,75 @@ class TargetPrediction:
                 return d
             else:
                 d = current_vel * delta_time + 0.5 * target_acc * delta_time ** 2
-                return d        
+                return d       
+
+
+    def _get_relative_position(self, front_d, rear_d):
+        if front_d < self.cr.cn_orig_d:
+            return CriticalRegion.Position.BEFORE_CR
+
+        if rear_d > self.cr.cf_orig_d:
+            return CriticalRegion.Position.AFTER_CR
+
+        if self.cr.cn_orig_d <= front_d <= self.cr.cf_orig_d or self.cr.cn_orig_d <= rear_d <= self.cr.cf_orig_d:
+            return CriticalRegion.Position.INSIDE_CR 
 
 
 
-    def get_cr_relative_position(self,
-                                 aoi:float,
-                                 target_vel:float,
-                                 target_acc:float,
-                                 target_length:float,
-                                 front: shapely.Point):
+    def get_position(self,
+                    aoi:float,
+                    target_vel:float,
+                    target_acc:float,
+                    target_length:float,
+                    front: shapely.Point):
+        # Compensate for the AoI by calculating the displacement that the target makes
+        # in delta_t = (current_t - aoi)
+        # Consider that the target is at aoi_comp_pos = (observed position + compensated displacement)
+        
         displacement = self.get_predicted_aoi_displacement(aoi, target_vel, target_acc)
 
         self.d_front, self.d_rear = self.project_to_path(front, target_length, displacement)
 
         self.dist_to_cr = max(0, self.cr.cn_orig_d - self.d_front)
 
-        if self.d_front < self.cr.cn_orig_d:
-            self.target_pos = CriticalRegion.Position.BEFORE_CR
-            return self.target_pos
+        self.target_pos = self._get_relative_position(self.d_front, self.d_rear)
 
-        cond_1 = self.cr.cn_orig_d <= self.d_front <= self.cr.cf_orig_d
-        cond_2 = self.cr.cn_orig_d <= self.d_rear <= self.cr.cf_orig_d
+        return self.target_pos
+    
 
-        if cond_1 or cond_2:
-            self.target_pos = CriticalRegion.Position.INSIDE_CR
-            return self.target_pos
+    def get_dist_to_cr(self, relative_pos: CriticalRegion.Position):
+        if relative_pos == CriticalRegion.Position.UNKNOWN:
+            return -1
+        
+        if relative_pos == CriticalRegion.Position.AFTER_CR or CriticalRegion.Position.INSIDE_CR:
+            return 0
+        
+        if relative_pos == CriticalRegion.Position.BEFORE_CR:
+            return max(0 , self.cr.cn_orig_d - self.d_front)
 
-        if self.d_rear > self.cr.cf_orig_d:
-            self.target_pos = CriticalRegion.Position.AFTER_CR
-            return self.target_pos
 
-
-    def estimate_time_to_cr(self,
-                            aoi: float,
-                            front: shapely.Point,
-                            target_len: float,
-                            target_vel:float,
-                            target_acc:float):
+    def get_time_to_cr(self,
+                       relative_pos: CriticalRegion.Position,
+                       current_vel:float,
+                       target_acc:float):
         """
-        # Compensate for the AoI by calculating the displacement that the target makes
-        # in delta_t = (current_t - aoi)
-        # Consider that the target is at aoi_comp_pos = (observed position + compensated displacement)
-        # From that position (aoi_comp_pos) calculate the target time to critical region (t_t_cr_a)
+        
 
         :param target_acc:
         :param target_vel:
-        :param target_len:
-        :param front:
-        :param aoi:
+        :relative_pos:
         :return:
         """
-        target_time = -1
-        relative_pos = self.get_cr_relative_position(aoi, target_vel, target_acc, target_len, front)
-
-        if relative_pos == CriticalRegion.Position.UNKNOWN or relative_pos == CriticalRegion.Position.AFTER_CR:
-            return self.target_pos, target_time
+        # This time only exists if we are before the region
+        target_time = self.NO_TIME_TO_CR
 
         if relative_pos == CriticalRegion.Position.BEFORE_CR:
-            # get target time to critical region
-            # discriminant V*v - 4*0.5*a*(-distance)
-            # we are before the CN!
+            # get distance to enter the CR
+            # we are before the CN point!
             distance = math.fabs(self.cr.cn_orig_d - self.d_front)
-            if self.at_max_speed(target_vel):
-                target_time = distance / target_vel
-            else:            
-                target_time = self.get_time_accelerated_motion(target_vel, target_acc, distance)
-            if target_time < 0:
-                print("ERROR get_target_time_to_cr for target with id: {0}!!!".format(self.id))
+            target_time = self._get_time_to(current_vel, target_acc, distance)
 
-        return self.target_pos, target_time  
+        return target_time  
 
 
 
@@ -135,11 +153,9 @@ class TargetPrediction:
         target_time = self.NO_TIME_TO_CR
 
         if target_pos == CriticalRegion.Position.BEFORE_CR or target_pos == CriticalRegion.Position.INSIDE_CR:
+            #get distance to leave the CR
             distance = math.fabs(self.cr.cf_orig_d - self.d_rear)
-            if self.at_max_speed(current_vel):
-                target_time = distance / current_vel
-            else:
-                target_time = self.get_time_accelerated_motion(current_vel, target_acc, distance)
+            target_time = self._get_time_to(current_vel, target_acc, distance)
 
         return target_time
     

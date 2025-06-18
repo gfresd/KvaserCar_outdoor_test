@@ -154,11 +154,11 @@ class EgoAdvSimNode(Node):
         self.declare_parameter('udp_target_ip', '127.0.0.1')
         self.declare_parameter('udp_target_port', 9999)
         self.declare_parameter('udp_delay', 0.01) # in seconds
-        self.declare_parameter('add_aoi', 850)     # in milli
+        self.declare_parameter('add_aoi', 80)     # in milli
         self.declare_parameter('adv_queue_size', 1)
-        self.declare_parameter('comm_fail_start', 1.0)
-        self.declare_parameter('comm_fail_duration', 9.0) # in seconds
-        self.declare_parameter('sim_step', 0.02)
+        self.declare_parameter('comm_fail_start', 0)
+        self.declare_parameter('comm_fail_duration', 0) # in seconds
+        self.declare_parameter('sim_step', 0.1)
         self.declare_parameter('comm_step', 0.001)
 
         # vehcile sizes
@@ -341,6 +341,7 @@ class EgoAdvSimNode(Node):
         # Suppress during comm failure
         if self._comm_fail_start <= now_ns < self._comm_fail_end:
             print(f"{(now_ns- self.start_ns)/1e9} COMM FAILURE")
+            self.adv_queue.clear()
             return
 
         # Send if delay elapsed

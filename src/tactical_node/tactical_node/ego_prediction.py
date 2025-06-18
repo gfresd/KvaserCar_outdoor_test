@@ -26,45 +26,84 @@ class EgoPrediction:
         self.gt_d_front = -1
         self.gt_d_rear = -1
         self.v_delta = 0.1
+        self.eps = 0.01
 
     
     def at_max_speed(self, target_vel)-> bool:
         cond1 = math.fabs(target_vel - self.reference_speed) < self.v_delta
         cond2 = target_vel > self.reference_speed
         return cond1 or cond2
-    
-    def get_time_accelerated_motion(self, vel, acc, distance):
-        # get target time to critical region
-        # discriminant V*v - 4*0.5*a*(-distance)
-        discriminant = vel ** 2 - 2 * acc * (-distance)
-        t = (-vel + math.sqrt(discriminant)) / acc
-        return t
+       
+    def _get_time_to(self, vel, acc, distance):
+        # check if we are at max speed
+        if self.at_max_speed(vel):
+            return distance / self.reference_speed
+        
+        # Treat extremely small velocities as zero
+        if abs(vel) < self.eps:
+            vel = 0.0
+
+        # if we are not at max speed we should calculate the time piece wise
+        d1 = ((self.reference_speed ** 2) - (vel**2)) / (2 * acc)
+        if distance > d1:
+            #accelerated motion
+            t1 = (self.reference_speed - vel) / acc
+            #constant motion
+            d2 = distance - d1
+            t2 = d2 / self.reference_speed
+            return t1 + t2
+        else:
+            # only accelerated motion, that means that while moving up to distance we never reach max speed
+            # discriminant V*v - 4*0.5*a*(-distance) -> V*v + 4*0.5*a*(distance)
+            discriminant = vel ** 2 - 2 * acc * (-distance)
+            t = (-vel + math.sqrt(discriminant)) / acc
+            return t
 
     
-    def get_time_to_leave_cr(self, relative_pos, current_vel:float , accel: float) -> float:
+    def get_time_to_leave_cr(self, relative_pos: CriticalRegion.Position, current_vel:float , accel: float) -> float:
         t = self.NO_TIME_TO_CR
 
         if relative_pos == CriticalRegion.Position.BEFORE_CR or relative_pos == CriticalRegion.Position.INSIDE_CR:
+            #get distance to leave the CR
             distance = math.fabs(self.cr.cf_orig_d - self.gt_d_rear)
-            if self.at_max_speed(current_vel):
-                t = distance / current_vel
-            else:
-                t = self.get_time_accelerated_motion(current_vel, accel, distance)
+            t = self._get_time_to(current_vel, accel, distance)
 
         return t
     
-    def get_time_to_cr(self, relative_pos, current_vel:float , accel: float) -> float:
-        t = self.NO_TIME_TO_CR
-        if relative_pos != CriticalRegion.Position.BEFORE_CR:
-            return t
-        
-        distance = math.fabs(self.cr.cn_orig_d - self.gt_d_front)
-        if self.at_max_speed(current_vel):
-            t = distance / current_vel
-        else:
-            t = self.get_time_accelerated_motion(current_vel, accel, distance)
 
-        return t      
+    def get_time_to_cr(self,
+                       relative_pos: CriticalRegion.Position,
+                       current_vel:float,
+                       accel:float):
+        """
+               
+        
+        :relative_pos:
+        :param current_vel:
+        :param accel:
+        :return:
+        """
+        # This time only exists if we are before the region
+        target_time = self.NO_TIME_TO_CR
+
+        if relative_pos == CriticalRegion.Position.BEFORE_CR:
+            # get distance to enter the CR
+            # we are before the CN point!
+            distance = math.fabs(self.cr.cn_orig_d - self.gt_d_front)
+            target_time = self._get_time_to(current_vel, accel, distance)
+
+        return target_time 
+
+    
+    def get_dist_to_cr(self, relative_pos: CriticalRegion.Position):
+        if relative_pos == CriticalRegion.Position.UNKNOWN:
+            return -1
+        
+        if relative_pos == CriticalRegion.Position.AFTER_CR or CriticalRegion.Position.INSIDE_CR:
+            return 0
+        
+        if relative_pos == CriticalRegion.Position.BEFORE_CR:
+            return max(0 , self.cr.cn_orig_d - self.d_front) 
 
 
     def _get_relative_position(self, front_d, rear_d):
