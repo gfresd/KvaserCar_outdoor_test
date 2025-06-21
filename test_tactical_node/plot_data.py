@@ -1,5 +1,6 @@
 import json
 import plotly.graph_objs as go
+import numpy as np
 
 
 def get_traces(data: dict, x_axis):
@@ -229,6 +230,9 @@ def plot(file_name):
 
         if key in ['all_rec_msg', 'msg_current']:
             x_axis, arr, _, _ = zip(*arr)
+
+        if key in ['aoi', 'aoi_abs']:
+            arr = np.array(arr) / 1e6
             
 
         name = key
@@ -256,5 +260,5 @@ def plot(file_name):
 
 if __name__ == '__main__':
 
-    fileName = "/home/gianfi/KvaserCar_outdoor_test/tactical_log/0618/18014936573092.json"
+    fileName = "/home/gianfi/KvaserCar_outdoor_test/test_behaviour/0621/21172500843790.json"
     plot(fileName)

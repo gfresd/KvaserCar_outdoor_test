@@ -4,12 +4,12 @@ from enum import IntEnum
 
 import shapely
 
-from tactical_node.critical_region import CriticalRegion
-from tactical_node.ego_pose import EgoPose
-from tactical_node.ego_prediction import EgoPrediction
-from tactical_node.kalman_filter import KalmanFilter
-from tactical_node.target_prediction import TargetPrediction
-from tactical_node.comm_msg import ComMsg
+from critical_region import CriticalRegion
+from ego_pose import EgoPose
+from ego_prediction import EgoPrediction
+from test_tactical_node.virtual_sim.kalman_filter import KalmanFilter
+from target_prediction import TargetPrediction
+from comm_msg import ComMsg
 
 def aoi_to_seconds(aoi) -> float:
     return aoi / 1_000_000_000
@@ -52,6 +52,7 @@ class TacticalBehavior:
         self.ego_d_front = -1
         self.ego_time_to_leave_cr = -1
         self.ego_time_to_cr = -1
+        self.time_margin = 0.01
         #-- logging
         self.ego_ttlcr_less_adv_ttcr = -1
         self.ego_ttcr_greater_adv_ttlcr = -1
@@ -71,6 +72,7 @@ class TacticalBehavior:
         self.kalman_f = KalmanFilter(1)
         self.decision_time = -1
         self.call_time = -1
+
         self.data_log = {"version": 2,
                          "call_time": list(),
                          "decision_time": list(),
@@ -179,7 +181,16 @@ class TacticalBehavior:
         #get ego current position
         self.ego_d_front, self.gt_d_rear, self.ego_current_pos = self.ego_prediction.get_current_pos(ego_front_p) 
         self.ego_d_to_cr = self.ego_prediction.get_dist_to_cr(self.ego_current_pos)
+        #ego time to critical region if it exists
         self.ego_ttcr = self.ego_prediction.get_time_to_cr(self.ego_current_pos, ego_vel, ego_acc)
+        #ego time to leave crtical region if it exists
+        self.ego_time_to_leave_cr = self.ego_prediction.get_time_to_leave_cr(self.ego_current_pos,
+                                                                          ego_vel,
+                                                                          ego_acc)
+        #predict ego time to CR
+        self.ego_time_to_cr = self.ego_prediction.get_time_to_cr(self.ego_current_pos,
+                                                                ego_vel,
+                                                                ego_acc)
         self.ego_action = TacticalAction.CONTINUE  
 
 
@@ -236,7 +247,7 @@ class TacticalBehavior:
             self.ego_time_to_leave_cr = self.ego_prediction.get_time_to_leave_cr(self.ego_current_pos,
                                                                           ego_vel,
                                                                           ego_acc)
-             #predict ego time to CR
+            #predict ego time to CR
             self.ego_time_to_cr = self.ego_prediction.get_time_to_cr(self.ego_current_pos,
                                                                 ego_vel,
                                                                 ego_acc)
@@ -244,12 +255,12 @@ class TacticalBehavior:
             # check where ego is
             if self.ego_current_pos == CriticalRegion.Position.BEFORE_CR:
                 print("***********PPPPPPPPPPPPPPP!!!!!!")
-                if self.ego_time_to_leave_cr < self.target_time_to_cr:
+                if self.ego_time_to_leave_cr <= self.target_time_to_cr - self.time_margin:
                     self.ego_action = TacticalAction.CONTINUE
                     self.ego_pred_go_pos = CriticalRegion.Position.AFTER_CR
                     self.ego_ttlcr_less_adv_ttcr = 1 
                     print(f"***********HERE 11  ego_time_to_leave_cr {self.ego_time_to_leave_cr}!!!!!!")
-                elif self.ego_time_to_cr > self.target_time_to_leave_cr:
+                elif self.ego_time_to_cr >= self.target_time_to_leave_cr + self.time_margin:
                     self.ego_action = TacticalAction.CONTINUE
                     self.ego_pred_go_pos = CriticalRegion.Position.BEFORE_CR
                     self.ego_ttcr_greater_adv_ttlcr = 1
@@ -262,10 +273,13 @@ class TacticalBehavior:
                     print("***********HERE 33!!!!!!")
                     
             elif self.ego_current_pos == CriticalRegion.Position.INSIDE_CR:
-                # in case ego is inside or after the CR
-                # the timing were checked
-                self.ego_action = TacticalAction.CONTINUE
-                print("***********OOOOOOOOOOOOOOOO!!!!!!")
+                # in case ego is inside the CR
+                if self.ego_time_to_leave_cr <= self.target_time_to_cr -  self.time_margin:
+                    self.ego_action = TacticalAction.CONTINUE
+                    print("***********OOOOOOOOOOOOOOOO!!!!!!")
+                else:                
+                    self.ego_action = TacticalAction.BREAKING                   
+                    print("***********SSSSSSSSSSSSSSSS!!!!!!")
             else:
                 # ego is AFTER the CR
                 self.ego_action = TacticalAction.CONTINUE  
@@ -303,7 +317,7 @@ class TacticalBehavior:
                                                                 ego_vel,
                                                                 ego_acc)
                     
-                    if self.ego_time_to_cr < self.target_time_to_leave_cr:
+                    if self.ego_time_to_cr <= self.target_time_to_leave_cr + self.time_margin:
                         # ego must break
                         self.ego_action = TacticalAction.BREAKING
                         self.ego_ttcr_less_adv_ttlcr = 1
