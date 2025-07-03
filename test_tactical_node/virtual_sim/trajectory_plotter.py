@@ -5,6 +5,7 @@ from collections import deque
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle, Polygon
+import shapely
 
 
 class TrajectoryPlotter:
@@ -12,8 +13,8 @@ class TrajectoryPlotter:
                  length: float = 0.720,
                  width: float = 0.515,
                  buffer_size: int = 1000,
-                 xlim: tuple = (-10, 10),
-                 ylim: tuple = (-10, 10),
+                 xlim: tuple = (-6, 6),
+                 ylim: tuple = (-6, 6),
                  pause_time: float = 0.05):
         """
         Initializes the plotting window and data buffers.
@@ -37,6 +38,7 @@ class TrajectoryPlotter:
         self.adv_path_start = None
         self.adv_path_end = None
 
+
         # critical region
         self.crit_region = None
 
@@ -47,7 +49,7 @@ class TrajectoryPlotter:
 
         # set up figure
         plt.ion()
-        self.fig, self.ax = plt.subplots(figsize=(8, 8))
+        self.fig, self.ax = plt.subplots(figsize=(12, 12))
         self.ax.set_xlabel('X position [m]')
         self.ax.set_ylabel('Y position [m]')
         self.ax.set_title('Live Trajectories with Critical Region')
@@ -75,11 +77,14 @@ class TrajectoryPlotter:
                      + self.ax.transData)
         self.tac_patch.set_transform(trans)
 
+        self.ego_poly_patch = None  
+        self.adv_poly_patch = None  
+
 
         # add to axes
         self.ax.add_patch(self.crit_patch)
-        self.ax.add_patch(self.ego_patch)
-        self.ax.add_patch(self.adv_patch)
+        #self.ax.add_patch(self.ego_patch)
+        #self.ax.add_patch(self.adv_patch)
         self.ax.add_patch(self.tac_patch)
         self.ax.legend()
         self.fig.canvas.draw()
@@ -104,6 +109,35 @@ class TrajectoryPlotter:
         xs = [start[0], end[0]]
         ys = [start[1], end[1]]
         self.adv_path_line.set_data(xs, ys)
+
+    def update_polygons(self, ego_poly: shapely.Polygon, adv_poly: shapely.Polygon):
+        """
+        Given two shapely Polygons (in data�coordinates),
+        create or update their Matplotlib patches so you
+        can see exactly the same footprints you computed.
+        """
+        coords_e = list(ego_poly.exterior.coords)
+        coords_a = list(adv_poly.exterior.coords)
+
+        # Ego footprint
+        if self.ego_poly_patch is None:
+            self.ego_poly_patch = Polygon(
+                coords_e, closed=True,
+                edgecolor='blue', facecolor='blue', alpha=0.6
+            )
+            self.ax.add_patch(self.ego_poly_patch)
+        else:
+            self.ego_poly_patch.set_xy(coords_e)
+
+        # Adv footprint
+        if self.adv_poly_patch is None:
+            self.adv_poly_patch = Polygon(
+                coords_a, closed=True,
+                edgecolor='red', facecolor='red', alpha=0.6
+            )
+            self.ax.add_patch(self.adv_poly_patch)
+        else:
+            self.adv_poly_patch.set_xy(coords_a)
 
     def update_ego_pose(self, x: float, y: float, yaw: float):
         """
@@ -145,13 +179,22 @@ class TrajectoryPlotter:
                      .translate(x, y)
                      + self.ax.transData)
             self.tac_patch.set_transform(trans)
+        else:
+            trans = (plt.matplotlib.transforms.Affine2D()
+                     .rotate_around(0, 0, -math.pi/2)
+                     .translate(x, y)
+                     + self.ax.transData)
+            self.tac_patch.set_transform(trans)
+
 
     def render(self):
         """
         Draw the current state and pause briefly for interactive update.
         """
-        self.fig.canvas.draw()
-        plt.pause(self.pause_time)
+        #self.fig.canvas.draw()
+        #plt.pause(self.pause_time)
+        self.fig.canvas.draw_idle()
+        self.fig.canvas.flush_events()
 
     def clear(self):
         """

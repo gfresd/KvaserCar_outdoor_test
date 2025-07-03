@@ -1,9 +1,11 @@
 import time
 import queue
 import shapely
-import math
-import matplotlib.pyplot as plt
-from matplotlib.patches import Polygon as MplPolygon
+from tqdm import tqdm
+import itertools
+import json
+import multiprocessing
+import numpy as np
 
 import parameters as parameters
 from logs_test import TestExpLog
@@ -12,24 +14,26 @@ from tactical_behaviour import TacticalBehavior
 from ego_pose import EgoPose
 from comm_msg import ComMsg
 from motion import Motion
-from trajectory_plotter import TrajectoryPlotter
+
+
 
 # --- Timing constants ---
 TRAJ_DT = 0.001           # 1 ms trajectory update
 DELTA_T = 0.1             # 100 ms tactical decision & rendering
 OBPS_PERIOD = 0.03        # 50 ms OBPS message generation
+
+# --- Vehicle dynamics
 SIM_ADV_MAX_SPEED = 1.25
 SIM_ADV_MAX_ACC   = 1.05
 SIM_EGO_MAX_SPEED = 1.5
 SIM_EGO_MAX_ACC   = 1.35
 
 
-# --- OBPS configuration constants ---
-COM_BASE_DELAY = 60
-COM_ADD_AOI = 1000
+COM_BASE_DELAY = 120
+COM_ADD_AOI = 0
 COM_DELAY_MS = COM_BASE_DELAY + COM_ADD_AOI           # message timestamp delay in milli
 COM_FAILURE_START_S = 0       # start of failure window (sec)
-COM_FAILURE_LENGTH_S = 0    # length of failure window (sec)
+COM_FAILURE_LENGTH_S = 1.5    # length of failure window (sec)
 
 # single-message queue for OBPS
 obps_queue = queue.Queue(maxsize=1)
@@ -40,6 +44,7 @@ class OBPS:
                  delay_us=COM_DELAY_MS,
                  failure_start_s=COM_FAILURE_START_S,
                  failure_length_s=COM_FAILURE_LENGTH_S):
+        
         self.delay_ns = delay_us * 1e6  # ms → ns
         self.failure_start_ns = failure_start_s * 1e9
         self.failure_length_ns = failure_length_s * 1e9
@@ -59,7 +64,7 @@ class OBPS:
             (fx, fy - parameters.ADV_LENGTH),
             adv_v + self._get_noise()
         )
-    
+
     def get_msg(self, adv_v, fx, fy):
         now = time.time_ns()
         if self.base_time is None:
@@ -68,8 +73,7 @@ class OBPS:
 
         # simulate failure window
         elapsed = now - self.base_time
-        if (self.failure_start_ns <= elapsed <
-                self.failure_start_ns + self.failure_length_ns):
+        if (self.failure_start_ns <= elapsed < self.failure_start_ns + self.failure_length_ns):
             return None
 
         # generate on first valid call
@@ -82,130 +86,26 @@ class OBPS:
 
         return self.last_msg
     
-
-
-class LivePolygonPlotter:
-    def __init__(self, alpha=0.5, xlim=(-6, 6), ylim=(-6, 6), position=('right', 'center')):
-        """
-        Initialize an empty live plot with fixed axis limits.
-        Polygons are added/created on the first update call.
-        """
-        plt.ion()  # interactive mode on
-        self.fig, self.ax = plt.subplots(figsize=(8, 8))
-        self.alpha = alpha
-        self.patch1 = None
-        self.patch2 = None
-
-        # Position the window
-        self._position_window(position)
-
-        # Fix axis limits
-        self.ax.set_xlim(*xlim)
-        self.ax.set_ylim(*ylim)
-        self.ax.set_aspect('equal', 'box')
-        self.ego_path_line, = self.ax.plot([-4, 4], [0, 0], 'b--', label='Ego path')
-        self.adv_path_line, = self.ax.plot([0, 0], [-4, 4], 'r--', label='Adv path')
-        plt.show()
-
-    def update(self, poly1: shapely.Polygon, poly2: shapely.Polygon):
-        """
-        Update or create polygons on the plot.
-        Call this whenever you have new Polygon objects.
-        """
-        coords1 = list(poly1.exterior.coords)
-        coords2 = list(poly2.exterior.coords)
-
-        if self.patch1 is None:
-            self.patch1 = MplPolygon(
-                coords1, closed=True,
-                alpha=self.alpha, edgecolor='blue', facecolor='blue'
-            )
-            self.ax.add_patch(self.patch1)
-        else:
-            self.patch1.set_xy(coords1)
-
-        if self.patch2 is None:
-            self.patch2 = MplPolygon(
-                coords2, closed=True,
-                alpha=self.alpha, edgecolor='red', facecolor='red'
-            )
-            self.ax.add_patch(self.patch2)
-        else:
-            self.patch2.set_xy(coords2)
-
-        # Redraw without autoscaling axes
-        self.fig.canvas.draw_idle()
-        self.fig.canvas.flush_events()
-
-    def _position_window(self, position):
-        """
-        Move the figure window to a screen location.
-        """
-        manager = plt.get_current_fig_manager()
-        # access underlying window
-        win = getattr(manager, 'window', None) or getattr(manager.canvas.manager, 'window', None)
-        if win is None:
-            return  # backend does not support window positioning
-
-        # screen dimensions
-        screen_w = win.winfo_screenwidth()
-        screen_h = win.winfo_screenheight()
-        # figure size in pixels
-        fig_w, fig_h = self.fig.get_size_inches() * self.fig.dpi
-
-        # horizontal position
-        if position[0] == 'right':
-            x = int(screen_w - fig_w - 50)
-        else:
-            x = 50
-        # vertical position
-        if position[1] == 'top':
-            y = 50
-        elif position[1] == 'center':
-            y = int((screen_h - fig_h) / 2)
-        else:
-            y = int(screen_h - fig_h - 50)
-
-        # move window depending on backend
-        if hasattr(win, 'wm_geometry'):
-            win.wm_geometry(f'+{x}+{y}')
-        elif hasattr(win, 'move'):
-            win.move(x, y)
-    
-
-plotter_test = LivePolygonPlotter()
-
 def is_ended(b: TacticalBehavior, ego_poly: shapely.Polygon, adv_poly: shapely.Polygon):
+
     if b.ego_d_front > b.ego_prediction.cr.cr_path.length - 1:
-        return "PASSED", True
-
-    global plotter_test  
-
-    plotter_test.update(ego_poly, adv_poly)
+        return "PASSED", True, None
 
     cond1 = ego_poly.intersects(adv_poly)
     cond2 = ego_poly.crosses(adv_poly) 
-    cond3 = shapely.distance(ego_poly, adv_poly) < 0.1
+    distance = shapely.distance(ego_poly, adv_poly)
+    cond3 =  distance <= 0.1
     if cond1 or cond2 or cond3:
-        print(f"cond1:{cond1}, cond2:{cond2}, cond3:{cond3}")      
-        return "CRASH", True
-        
-    return None, False
+        #print(f"cond1:{cond1}, cond2:{cond2}, cond3:{cond3}")      
+        return "CRASH", True, distance
+
+    return None, False, None
 
 
 def pub_ego_ref_speed(vel):
-    print("pub speed: {0}".format(vel))
+    pass
+    #print("pub speed: {0}".format(vel))
 
-
-def get_static_message():
-
-    return ComMsg(
-        0,
-        time.time_ns() - 10*10e-6,
-        (0, parameters.ADV_PATH_START[1]),
-        (0, parameters.ADV_PATH_START[1] - parameters.ADV_LENGTH),
-        0
-    )
 
 def main(cfg: dict):
     # --- initialize geometry & modules ---
@@ -239,23 +139,8 @@ def main(cfg: dict):
     )
 
     adv_motion = Motion(max_acc=SIM_ADV_MAX_ACC)
-    ego_motion = Motion(max_acc=SIM_ADV_MAX_ACC)
+    ego_motion = Motion(max_acc=SIM_EGO_MAX_ACC)
     obps = OBPS(delay_us=cfg["obps"]["delay"], failure_length_s=cfg["obps"]["failure_len"], failure_start_s=cfg["obps"]["failure_start"])
-
-    # plotter setup
-    plotter = TrajectoryPlotter()
-    plotter.set_critical_region([
-        parameters.CR_POINT_1,
-        parameters.CR_POINT_2,
-        parameters.CR_POINT_3,
-        parameters.CR_POINT_4
-    ])
-    plotter.set_ego_path(
-        parameters.EGO_PATH_START, parameters.EGO_PATH_END
-    )
-    plotter.set_adv_path(
-        parameters.ADV_PATH_START, parameters.ADV_PATH_END
-    )
 
     # state variables
     ego_ref = parameters.EGO_REFERENCE_SPEED
@@ -278,7 +163,6 @@ def main(cfg: dict):
 
         # 1) trajectory updates at 1ms
         while now - last_traj >= TRAJ_DT:
-
             adv_motion.update(SIM_ADV_MAX_SPEED, TRAJ_DT)
             d_t = adv_motion.get_total_displacement()
             front_target = target_path.interpolate(d_t + parameters.ADV_LENGTH/2)
@@ -327,18 +211,12 @@ def main(cfg: dict):
             ego_ref = behaviour.action_to_speed(action)
             behaviour.log()
 
-            #---- RENDER 
-            # update and render plot
             adv_center = target_path.interpolate(
                 adv_motion.get_total_displacement()
             )
             ego_center = ego_path.interpolate(
                 ego_motion.get_total_displacement()
             )
-           
-            if behaviour.target_prediction.d_front != -1:
-                xf, yf = behaviour.target_prediction.get_coords_of_projected_front()
-                plotter.set_tactical_front(xf, yf)
 
             ego_front_x   =  ego_center.x - parameters.EGO_LENGTH/2
             ego_rear_x    =  ego_center.x + parameters.EGO_LENGTH/2
@@ -355,51 +233,92 @@ def main(cfg: dict):
             adv_rear_y    =  adv_center.y - parameters.ADV_LENGTH/2
             adv_width_rx  =  adv_center.x + parameters.ADV_WIDTH/2
             adv_width_lx  =  adv_center.x - parameters.ADV_WIDTH/2
+
             adv_poly = shapely.Polygon([
                                 (adv_width_lx, adv_front_y), 
                                 (adv_width_rx, adv_front_y), 
                                 (adv_width_rx, adv_rear_y), 
                                 (adv_width_lx, adv_rear_y)])  
-
-            plotter.update_polygons(ego_poly, adv_poly)
-            plotter.render()
-            print(f'ego_center {ego_center} ego_front {front_ego}' 
-                  f' diff {round(math.fabs(ego_center.x - front_ego.x), 5)}')
-            print(f'adv_center {adv_center} adv_front {front_target}' 
-                  f' diff {round(math.fabs(adv_center.y - front_target.y), 5)}')
-
-            #--- CHECK TERMINATION
-            cause, ended = is_ended(behaviour,
+            
+            # check termination
+            cause, ended, distance = is_ended(behaviour,
                                     ego_poly, 
                                     adv_poly)
+
             if ended:
                 pub_ego_ref_speed(0.0)
-                TestExpLog(behaviour.data_log,
-                           log_debug, cause).write_to_file()
+                #TestExpLog(behaviour.data_log,log_debug, cause).write_to_file()                           
                 break
 
 
             last_tactical += DELTA_T
 
-    return cause
+    return cause, distance
 
+
+   
+def run_experiment(args):
+    base_delay, add_aoi, fail_start, fail_len, adv_max_acc, adv_max_speed = args
+    total_delay = base_delay + add_aoi
+
+    cfg = {
+        "obps":{
+            "delay": total_delay,
+            "failure_start": fail_start,
+            "failure_len": fail_len
+        },
+        "ego_params":{
+            "adv_max_acc": adv_max_acc, 
+            "adv_max_speed": adv_max_speed
+        }
+    }
+
+    outcome, distance = main(cfg)
+
+    return {"cfg": cfg, "outcome": outcome, "distance": distance}
 
 if __name__ == '__main__':
 
-    ADV_MAX_SPEED = 0.5
-    ADV_MAX_ACC   = 0.5
+    #out = run_experiment((60, 0, 0, 0))
+    #exit(0)
 
-    cfg = { 
-        "obps":{
-            "delay": COM_DELAY_MS,
-            "failure_len":COM_FAILURE_LENGTH_S,
-            "failure_start":COM_FAILURE_START_S
-                },
-        "ego_params": {
-            "adv_max_speed": ADV_MAX_SPEED,
-            "adv_max_acc": ADV_MAX_ACC
-            }
-        }
+    # --- OBPS parameterization ---
+    COM_BASE_DELAY_LIST     = [60, 80]
+    COM_ADD_AOI_LIST        = list(range(0, 1100, 100))
+    COM_FAILURE_START_LIST  = [round(x, 1) for x in np.arange(0, 2.5, 0.1)]       # start of failure window (sec)
+    COM_FAILURE_LEN_LIST    = [0, 0.5, 1.1, 1.2, 1.3, 1.5, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0, 2.1, 2.2, 2.5, 10]    # length of failure window (sec)
+    ADV_MAX_ACC_LIST        = [1.05]
+    ADV_MAX_SPEED_LIST      = [1.25]   
+   
+    
+    multiprocessing.freeze_support()
 
-    cause = main(cfg)
-    print(f"Experiment terminated: {cause}")
+    all_args = list(itertools.product(
+        COM_BASE_DELAY_LIST,
+        COM_ADD_AOI_LIST,
+        COM_FAILURE_START_LIST,
+        COM_FAILURE_LEN_LIST,
+        ADV_MAX_ACC_LIST,
+        ADV_MAX_SPEED_LIST
+    ))
+    total_runs = len(all_args)
+
+    # create pool
+    with multiprocessing.Pool() as pool:
+        # imap_unordered yields results as they come in
+        results = []
+        for result in tqdm(
+            pool.imap_unordered(run_experiment, all_args),
+            total=total_runs,
+            desc="Running simulations",
+            unit="run"
+        ):
+            results.append(result)
+
+    # dump to JSON
+    file_name = f'results_{time.time()}.json'
+    body ={"out":results}
+    with open(file_name, 'w') as fp:
+        json.dump(body, fp, indent=2)
+
+    print(f"[INFO] Completed {total_runs} runs — results saved to {file_name}")
