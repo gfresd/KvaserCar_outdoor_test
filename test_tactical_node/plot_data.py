@@ -260,5 +260,5 @@ def plot(file_name):
 
 if __name__ == '__main__':
 
-    fileName = "/home/gianfi/KvaserCar_outdoor_test/test_behaviour/0621/21172500843790.json"
+    fileName = "/home/gianfi/KvaserCar_outdoor_test/tactical_log/0703/03130530459260.json"
     plot(fileName)

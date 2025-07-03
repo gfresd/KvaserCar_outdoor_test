@@ -272,8 +272,8 @@ def load_most_recent_json(directory: str) -> dict:
 
 if __name__ == '__main__':
 
-    fileName = "/home/gianfi/KvaserCar_outdoor_test/data/1747663167.0827518.json"
-    dir = "/home/gianfi/Documents/KvaserCar_outdoor_test/data/26_05_25"
+    fileName = "/home/gianfi/KvaserCar_outdoor_test/tactical_log/0703/"
+    dir = "/home/gianfi/KvaserCar_outdoor_test/tactical_log/0703/"
 
     #with open(fileName, "r") as f:
     #    parsed = json.load(f)
