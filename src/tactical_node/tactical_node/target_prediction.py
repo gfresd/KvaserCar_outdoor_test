@@ -162,7 +162,3 @@ class TargetPrediction:
     def get_coords_of_projected_front(self):
         front_point = self.cr.cr_path.interpolate(self.d_front)
         return front_point.x, front_point.y
-
-
-
-
