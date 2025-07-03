@@ -1,5 +1,6 @@
 import json
 import plotly.graph_objs as go
+import numpy as np
 
 
 def get_traces(data: dict, x_axis):
@@ -208,21 +209,56 @@ def plot(file_name):
     plot_heading = ("Debug chart")
 
     x_axis = [i for i in range(len(parsed["ego"]["call_time"]))]
-    traces = get_traces(parsed, x_axis)
+    #x_axis = parsed["ego"]["call_time"]
+    #traces = get_traces(parsed, x_axis)
+
+    skip = ['call_time', 'version']
+    legend_only = []
+    fig = go.Figure()
+
+    indices = [i for i, val in enumerate(parsed["ego"]['target_d_front']) if val != -1]
+
+
+    for key, arr in parsed["ego"].items():
+        if key in skip:
+            continue
+
+        if key == 'target_front_coords':
+            _, arr = zip(*arr)
+            x_axis = [x_axis[i] for i in indices]
+            name = "target_front_coord_y"
+
+        if key in ['all_rec_msg', 'msg_current']:
+            x_axis, arr, _, _ = zip(*arr)
+
+        if key in ['aoi', 'aoi_abs']:
+            arr = np.array(arr) / 1e6
+            
+
+        name = key
+        trace = go.Scatter(
+            x=x_axis,
+            y=arr,
+            mode="lines+markers",
+            name=name,
+            marker=dict( size=4),
+            visible='legendonly' if key in legend_only else True
+        )
+        fig.add_trace(trace)
 
     # Create the graph layout
-    layout = go.Layout(
-        title=plot_heading,
-        xaxis=dict(range=[x_axis[0], x_axis[-1]]),
-        #yaxis=dict(range=[-5, 35]),
-        hovermode='x unified'
-    )
 
-    fig = go.Figure(data=traces, layout=layout)
+    fig.update_layout(
+        title=plot_heading,
+        xaxis_title='Time',
+        yaxis_title='Value',
+        hovermode="x unified",
+        xaxis=dict( tickformat=',', separatethousands=True)  
+    )
     fig.show()
 
 
 if __name__ == '__main__':
 
-    fileName = "/home/tecosa/KvaserCar_outdoor_test/tactical_log/0610/10135405460145.json"
+    fileName = "/home/gianfi/KvaserCar_outdoor_test/test_behaviour/0621/21172500843790.json"
     plot(fileName)

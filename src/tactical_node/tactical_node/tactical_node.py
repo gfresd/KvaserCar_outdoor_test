@@ -24,7 +24,7 @@ from tactical_msgs.msg import LogEntry
 
 # topics name
 ROS_TOPIC_AEB = "/aeb_triggered"
-ROS_TOPIC_ODOM = "/odometry/map"
+ROS_TOPIC_ODOM = "/odometry/map/sim"
 ROS_TOPIC_REF_VEL = "/ref_spd"
 ROS_TOPIC_TACTICAL_LOG = "/tactical_log"
 ROS_TOPIC_OBPS = "/obps"

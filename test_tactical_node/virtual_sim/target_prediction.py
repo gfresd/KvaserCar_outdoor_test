@@ -1,7 +1,7 @@
 
 import shapely
 import math
-from tactical_node.critical_region import CriticalRegion
+from critical_region import CriticalRegion
 
 class TargetPrediction:
 

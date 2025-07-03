@@ -144,7 +144,7 @@ class TacticalBehavior:
         target_front = shapely.Point(self.msg.front[0], self.msg.front[1])
         shapely.prepare(target_front)
         self.target_acc = self._get_target_acc(self.aoi_in_seconds, self.msg.velocity)
-        self.target_pred_pos, self.target_ttcr = self.target_prediction.estimate_time_to_cr(
+        self.target_pred_pos, self.target_ttcr = self.target_prediction.get_time_to_cr(
             self.aoi_in_seconds,
             target_front,
             target_length,

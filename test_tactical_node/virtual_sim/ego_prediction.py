@@ -1,5 +1,5 @@
 import shapely
-from tactical_node.critical_region import CriticalRegion
+from critical_region import CriticalRegion
 import math
 
 class EgoPrediction:
