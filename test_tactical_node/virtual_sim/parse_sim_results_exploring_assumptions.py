@@ -5,8 +5,8 @@ import pandas as pd
 import plotly.express as px
 
 # --- Constants ---
-PATH = "/home/gianfi/Documents/KvaserCar_outdoor_test/results_1750878135.6633976.json"
-OUT_DIR = "plots"
+PATH = "test_tactical_node/virtual_sim/results_virtual_sim/results_1750878135.6633976.json"
+OUT_DIR = "test_tactical_node/virtual_sim/plots1"
 
 # --- Ensure input exists and output dir is ready ---
 if not os.path.exists(PATH):
